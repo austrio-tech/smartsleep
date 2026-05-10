@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../data/providers/sleep_data_provider.dart';
 import '../../../data/models/derived_sleep_data.dart';
@@ -79,11 +81,22 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     }
     setState(() => _exporting = true);
     try {
-      final csv = _buildCsv(records);
-      // Share as plain text — works on all platforms without file system access
-      await Share.share(
-        csv,
-        subject: 'SmartSleep Data Export (${records.length} nights)',
+      // Build filename based on selected period
+      final label = _period == _Period.custom && _customRange != null
+          ? '${DateFormat('yyyy-MM-dd').format(_customRange!.start)}'
+            '_to_${DateFormat('yyyy-MM-dd').format(_customRange!.end)}'
+          : _period.name;
+      final fileName = 'smartsleep_$label.csv';
+
+      // Write CSV to the system temp directory
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsString(_buildCsv(records), flush: true);
+
+      // Share as a real file — opens native share sheet with CSV attachment
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'text/csv', name: fileName)],
+        subject: 'SmartSleep Export — ${records.length} nights',
       );
     } catch (e) {
       if (mounted) {
