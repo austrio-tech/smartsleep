@@ -1,3 +1,11 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// signup_screen.dart  –  New user registration form.
+//
+// Collects: name, email, age, gender, password, confirm password.
+// Client-side validation: field formats, password length, password match.
+// On success: navigates to the login screen (the user must sign in after registering).
+// ─────────────────────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -6,6 +14,7 @@ import '../../../data/providers/auth_provider.dart';
 import '../../../app/routes.dart';
 import '../../widgets/common/primary_button.dart';
 
+/// Registration screen for new SmartSleep users.
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
@@ -15,15 +24,24 @@ class SignupScreen extends ConsumerStatefulWidget {
 
 class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _formKey = GlobalKey<FormBuilderState>();
-  bool _obscurePassword = true;
-  bool _obscureConfirm = true;
 
+  // Track password visibility state — toggled by the eye icon button
+  bool _obscurePassword = true;
+  bool _obscureConfirm  = true;
+
+  /// Called when the user taps "Sign Up".
+  ///
+  /// Validates the form, checks passwords match, strips UI-only fields (confirm_password),
+  /// then calls the auth provider's signup method.
   void _signup() async {
+    // Return early if any validation fails
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
 
+    // Get a mutable copy of form values
     final values = Map<String, dynamic>.from(_formKey.currentState!.value);
 
-    // Validate confirm password client-side
+    // Passwords must match — this can't be done with a standard validator
+    // because the validator for one field doesn't have access to another field.
     if (values['password'] != values['confirm_password']) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -36,22 +54,26 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       return;
     }
 
-    // Build payload (remove UI-only field)
+    // Build the API payload — only include fields the backend expects.
+    // `confirm_password` is a UI-only field; the API doesn't need it.
     final payload = {
-      'email': values['email'],
-      'password': values['password'],
+      'email':     values['email'],
+      'password':  values['password'],
       'full_name': values['full_name'],
+      // Only include age if the user actually typed something
       if (values['age'] != null && values['age'].toString().isNotEmpty)
         'age': int.tryParse(values['age'].toString()),
       if (values['gender'] != null) 'gender': values['gender'],
     };
 
+    // Trigger signup via the auth provider
     await ref.read(authStateProvider.notifier).signup(payload);
 
     final authState = ref.read(authStateProvider);
-    if (!mounted) return;
+    if (!mounted) return; // Guard against calling setState after dispose
 
     if (authState.errorMessage != null) {
+      // Signup failed (e.g., email already in use)
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(authState.errorMessage!),
@@ -61,10 +83,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         ),
       );
     } else {
+      // Signup succeeded — redirect to login
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Account created! Please sign in.'),
-          backgroundColor: const Color(0xFF16A34A),
+          backgroundColor: const Color(0xFF16A34A), // Success green
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -86,9 +109,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context), // Go back to login screen
         ),
-        title: const Text('Create Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Create Account',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -96,15 +120,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Image.asset('lib/SmartSleepLogo.png', height: 80),
-              ),
+              Center(child: Image.asset('lib/SmartSleepLogo.png', height: 80)),
               const SizedBox(height: 28),
+
               FormBuilder(
                 key: _formKey,
                 child: Column(
                   children: [
-                    // Full Name
+                    // Full name field
                     FormBuilderTextField(
                       name: 'full_name',
                       decoration: const InputDecoration(
@@ -117,11 +140,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         FormBuilderValidators.minLength(2),
                       ]),
                       keyboardType: TextInputType.name,
-                      textCapitalization: TextCapitalization.words,
+                      textCapitalization: TextCapitalization.words, // Auto-capitalise first letter
                     ),
                     const SizedBox(height: 16),
 
-                    // Email
+                    // Email field
                     FormBuilderTextField(
                       name: 'email',
                       decoration: const InputDecoration(
@@ -137,7 +160,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Age + Gender row
+                    // Age and gender side by side
                     Row(
                       children: [
                         Expanded(
@@ -168,7 +191,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Password
+                    // Password field with toggle visibility button
                     FormBuilderTextField(
                       name: 'password',
                       obscureText: _obscurePassword,
@@ -176,12 +199,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         labelText: 'Password',
                         hintText: 'Min. 8 characters',
                         prefixIcon: const Icon(Icons.lock_outline, size: 22),
+                        // Eye icon button toggles password visibility
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
                             size: 20,
                           ),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          onPressed: () =>
+                              setState(() => _obscurePassword = !_obscurePassword),
                         ),
                       ),
                       validator: FormBuilderValidators.compose([
@@ -191,7 +218,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Confirm Password
+                    // Confirm password field (UI-only — not sent to API)
                     FormBuilderTextField(
                       name: 'confirm_password',
                       obscureText: _obscureConfirm,
@@ -201,10 +228,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         prefixIcon: const Icon(Icons.lock_outline, size: 22),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            _obscureConfirm
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
                             size: 20,
                           ),
-                          onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                          onPressed: () =>
+                              setState(() => _obscureConfirm = !_obscureConfirm),
                         ),
                       ),
                       validator: FormBuilderValidators.required(),
@@ -213,12 +243,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 ),
               ),
               const SizedBox(height: 32),
+
+              // Submit button — shows loading spinner during API call
               PrimaryButton(
                 text: 'Sign Up',
                 isLoading: authState.status == AuthStatus.authenticating,
                 onPressed: _signup,
               ),
               const SizedBox(height: 24),
+
+              // Link back to login screen for existing users
               Center(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -237,6 +271,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Terms and privacy policy notice
               Center(
                 child: Text(
                   'By signing up, you agree to our Terms of Service\nand Privacy Policy.',
