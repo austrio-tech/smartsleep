@@ -4,6 +4,7 @@ import 'package:smartsleep/presentation/widgets/common/primary_button.dart';
 import 'package:smartsleep/app/routes.dart';
 import 'package:smartsleep/data/providers/analysis_provider.dart';
 import 'package:smartsleep/data/providers/sleep_data_provider.dart';
+import 'package:smartsleep/core/network/api_exception.dart';
 
 class FeedbackScreen extends ConsumerStatefulWidget {
   const FeedbackScreen({super.key});
@@ -46,7 +47,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to submit feedback: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(e is ApiException ? e.message : 'Something went wrong. Please try again.'), backgroundColor: Colors.red),
         );
       }
     } finally {

@@ -34,23 +34,49 @@ class ApiException implements Exception {
   /// - Other errors → "An unexpected error occurred"
   factory ApiException.fromDioError(DioException error) {
     switch (error.type) {
-      // The connection took too long to establish or the server didn't respond in time.
-      // Common on free Render.com deployments that "sleep" when inactive.
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return ApiException('Connection timed out');
+        return ApiException(
+          'Connection timed out. Please check your internet and try again.',
+        );
+
+      case DioExceptionType.connectionError:
+        return ApiException(
+          'Unable to connect. Please check your internet connection.',
+        );
 
       // The server responded but with an error status code (4xx or 5xx).
       case DioExceptionType.badResponse:
-        // Try to extract the "detail" or "message" field from the JSON error body
         final data = error.response?.data;
-        final message = data is Map ? data['message'] ?? error.message : error.message;
-        return ApiException(message ?? 'Server error', statusCode: error.response?.statusCode);
+        final statusCode = error.response?.statusCode;
 
-      // Catch-all for unexpected error types (SSL errors, bad URLs, etc.)
+        // FastAPI always wraps error messages in {"detail": "..."}.
+        // Some endpoints may use {"message": "..."} as fallback.
+        String? message;
+        if (data is Map) {
+          final raw = data['detail'] ?? data['message'];
+          if (raw is String && raw.isNotEmpty) message = raw;
+        }
+
+        // Friendly fallbacks when the server body has no readable message
+        message ??= switch (statusCode) {
+          400  => 'Invalid request. Please check your input.',
+          401  => 'Incorrect email or password.',
+          403  => 'You do not have permission to do that.',
+          404  => 'The requested resource was not found.',
+          422  => 'Please check your input and try again.',
+          429  => 'Too many requests. Please wait a moment.',
+          500  => 'Server error. Please try again later.',
+          502  => 'Service temporarily unavailable. Please try again.',
+          503  => 'Service temporarily unavailable. Please try again.',
+          _    => 'An error occurred. Please try again.',
+        };
+
+        return ApiException(message, statusCode: statusCode);
+
       default:
-        return ApiException('An unexpected error occurred');
+        return ApiException('An unexpected error occurred. Please try again.');
     }
   }
 }

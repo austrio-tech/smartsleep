@@ -6,6 +6,7 @@ import '../../../data/providers/auth_provider.dart';
 import '../../../data/providers/profile_provider.dart';
 import '../../../data/models/user.dart';
 import '../../../core/constants/api_constants.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../data/providers/api_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -91,7 +92,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Update failed: $e'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+          SnackBar(
+            content: Text(e is ApiException ? e.message : 'Something went wrong. Please try again.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } finally {
@@ -116,7 +121,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+          SnackBar(
+            content: Text(e is ApiException ? e.message : 'Something went wrong. Please try again.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } finally {
@@ -162,12 +171,48 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+          SnackBar(
+            content: Text(e is ApiException ? e.message : 'Something went wrong. Please try again.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } finally {
       if (mounted) setState(() => _isResetting = false);
     }
+  }
+
+  /// Opens the Change Password dialog (a proper StatefulWidget).
+  ///
+  /// The dialog owns its own controllers and state, so pressing Back
+  /// disposes them cleanly without crashing the parent screen.
+  Future<void> _showChangePasswordDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ChangePasswordDialog(
+        onSubmit: (currentPwd, newPwd) async {
+          final apiClient = ref.read(apiClientProvider);
+          await apiClient.post(
+            ApiConstants.changePassword,
+            data: {
+              'current_password': currentPwd,
+              'new_password': newPwd,
+            },
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Password changed successfully!'),
+                backgroundColor: Color(0xFF16A34A),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        },
+      ),
+    );
   }
 
   @override
@@ -200,7 +245,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       body: profileAsync.when(
         data: (user) => _buildBody(context, theme, user),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+          child: Text(e is ApiException ? e.message : 'Failed to load profile. Please try again.'),
+        ),
       ),
     );
   }
@@ -438,7 +485,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           ),
           const SizedBox(height: 16),
 
-          // ── Password Reset ───────────────────────────────────────────────
+          // ── Security ─────────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -450,12 +497,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _SectionLabel('Security'),
-                const SizedBox(height: 8),
-                Text(
-                  'A new random password will be generated and sent to your registered email. You can change it after signing in.',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.5),
-                ),
                 const SizedBox(height: 16),
+
+                // ── Change Password (knows current password) ───────────────
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isResetting ? null : _showChangePasswordDialog,
+                    icon: const Icon(Icons.lock_open_rounded, size: 20),
+                    label: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w700)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: const Color(0xFF6366F1),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Reset Password via Email (forgot password) ─────────────
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
@@ -463,7 +524,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     icon: _isResetting
                         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.lock_reset_rounded, size: 20),
-                    label: const Text('Reset Password via Email', style: TextStyle(fontWeight: FontWeight.w700)),
+                    label: const Text('Forgot Password? Reset via Email', style: TextStyle(fontWeight: FontWeight.w700)),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       foregroundColor: const Color(0xFF6366F1),
@@ -471,6 +532,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Use "Change Password" if you know your current password. Use "Forgot Password" if you need a new one sent to your email.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), height: 1.5),
                 ),
               ],
             ),
@@ -548,6 +614,168 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     } catch (_) {
       return iso.substring(0, 10);
     }
+  }
+}
+
+/// Change Password dialog extracted as a StatefulWidget so that controllers,
+/// visibility toggles, and loading state are owned and disposed by the widget
+/// itself — pressing Back dismisses cleanly without a "setState after dispose" crash.
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog({required this.onSubmit});
+
+  /// Called with (currentPassword, newPassword) when the form is valid and submitted.
+  /// Should throw [ApiException] on failure so the dialog can display the message inline.
+  final Future<void> Function(String currentPwd, String newPwd) onSubmit;
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _currentCtrl = TextEditingController();
+  final _newCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+
+  bool _isSubmitting = false;
+  bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _currentCtrl.dispose();
+    _newCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() { _isSubmitting = true; _errorMessage = null; });
+    try {
+      await widget.onSubmit(_currentCtrl.text, _newCtrl.text);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage = e is ApiException ? e.message : 'Something went wrong. Please try again.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Row(
+        children: [
+          Icon(Icons.lock_outline_rounded, color: Color(0xFF6366F1)),
+          SizedBox(width: 8),
+          Flexible(child: Text('Change Password')),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEBEB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(fontSize: 13, color: Color(0xFFB91C1C)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+              TextFormField(
+                controller: _currentCtrl,
+                obscureText: _obscureCurrent,
+                enabled: !_isSubmitting,
+                decoration: InputDecoration(
+                  labelText: 'Current Password',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscureCurrent ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                    onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                  ),
+                ),
+                validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _newCtrl,
+                obscureText: _obscureNew,
+                enabled: !_isSubmitting,
+                decoration: InputDecoration(
+                  labelText: 'New Password',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                    onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                  ),
+                ),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Required';
+                  if (v.length < 8) return 'Minimum 8 characters';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _confirmCtrl,
+                obscureText: _obscureConfirm,
+                enabled: !_isSubmitting,
+                decoration: InputDecoration(
+                  labelText: 'Confirm New Password',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                    onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                  ),
+                ),
+                validator: (v) => v != _newCtrl.text ? 'Passwords do not match' : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF6366F1),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: _isSubmitting
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Text('Change', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        ),
+      ],
+    );
   }
 }
 

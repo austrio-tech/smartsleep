@@ -14,6 +14,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/auth_repository.dart';
+import '../../core/network/api_exception.dart';
 import 'api_provider.dart';
 
 /// Provides an [AuthRepository] instance to the app.
@@ -92,7 +93,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState.authenticated(); // Success → go to home
     } catch (e) {
       // Store the error message so the UI can display it in a SnackBar
-      state = AuthState(status: AuthStatus.unauthenticated, errorMessage: e.toString());
+      state = AuthState(
+        status: AuthStatus.unauthenticated,
+        errorMessage: e is ApiException ? e.message : 'Something went wrong. Please try again.',
+      );
     }
   }
 
@@ -106,7 +110,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _repository.signup(userData);
       state = AuthState.unauthenticated(); // Redirect to login after signup
     } catch (e) {
-      state = AuthState(status: AuthStatus.unauthenticated, errorMessage: e.toString());
+      state = AuthState(
+        status: AuthStatus.unauthenticated,
+        errorMessage: e is ApiException ? e.message : 'Something went wrong. Please try again.',
+      );
     }
   }
 

@@ -5,6 +5,7 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:intl/intl.dart';
 import 'package:smartsleep/presentation/widgets/common/primary_button.dart';
 import 'package:smartsleep/data/providers/sleep_data_provider.dart';
+import 'package:smartsleep/core/network/api_exception.dart';
 
 class PreSleepEntryScreen extends ConsumerStatefulWidget {
   const PreSleepEntryScreen({super.key});
@@ -51,7 +52,7 @@ class _PreSleepEntryScreenState extends ConsumerState<PreSleepEntryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(e is ApiException ? e.message : 'Something went wrong. Please try again.'), backgroundColor: Colors.red),
         );
       }
     } finally {

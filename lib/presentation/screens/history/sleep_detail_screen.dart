@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../data/models/derived_sleep_data.dart';
+import '../../../data/models/recommendation.dart';
+import '../../../data/providers/analysis_provider.dart';
 import '../../../app/routes.dart';
 
-class SleepDetailScreen extends StatelessWidget {
+// ConsumerWidget gives access to Riverpod's `ref` so we can watch providers.
+class SleepDetailScreen extends ConsumerWidget {
   const SleepDetailScreen({super.key, required this.record});
 
   final DerivedSleepData record;
@@ -29,11 +33,15 @@ class SleepDetailScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final score = record.finalScore ?? 0;
     final color = _scoreColor(score);
     final date = DateTime.tryParse(record.date) ?? DateTime.now();
+
+    // Watch the recommendations provider — same data shown on the Sleep Report screen.
+    // Returns AsyncValue<List<Recommendation>> (loading / data / error).
+    final recommendationsAsync = ref.watch(recommendationsProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -162,7 +170,7 @@ class SleepDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // ── Additional Metrics ───────────────────────────────────────────
+          // ── Score Breakdown ──────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -185,7 +193,178 @@ class SleepDetailScreen extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 24),
+
+          // ── Personalised Recommendations ─────────────────────────────────
+          const Text(
+            'Personalised Recommendations',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+          ),
+          const SizedBox(height: 4),
+          // Subtitle clarifies these reflect current patterns, not just this one night
+          const Text(
+            'Based on your recent sleep patterns',
+            style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+          ),
+          const SizedBox(height: 12),
+          recommendationsAsync.when(
+            data: (recs) {
+              if (recs.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'No recommendations available yet. Complete a few more nights to unlock insights.',
+                    style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                  ),
+                );
+              }
+              // Show all recommendations as cards
+              return Column(
+                children: recs.map((rec) => _RecommendationCard(rec: rec)).toList(),
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, __) => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'Could not load recommendations.',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper functions for recommendation cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Maps a recommendation category string to an icon
+IconData _getCategoryIcon(String category) {
+  switch (category.toLowerCase()) {
+    case 'caffeine':
+      return Icons.coffee_rounded;
+    case 'screen':
+    case 'screen time':
+      return Icons.phone_android_rounded;
+    case 'stress':
+    case 'stress & mood':
+      return Icons.psychology_rounded;
+    case 'environment':
+    case 'sleep environment':
+      return Icons.home_rounded;
+    case 'biological':
+    case 'biological readiness':
+      return Icons.fitness_center_rounded;
+    default:
+      return Icons.nights_stay_rounded;
+  }
+}
+
+// Maps priority string to a colour: high=red, medium=amber, low=green
+Color _getPriorityColor(String priority) {
+  switch (priority.toLowerCase()) {
+    case 'high':
+      return const Color(0xFFEF4444);
+    case 'medium':
+      return const Color(0xFFF59E0B);
+    case 'low':
+      return const Color(0xFF16A34A);
+    default:
+      return Colors.grey;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RecommendationCard extends StatelessWidget {
+  const _RecommendationCard({required this.rec});
+  final Recommendation rec;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final priorityColor = _getPriorityColor(rec.priority);
+    final categoryIcon = _getCategoryIcon(rec.category);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Coloured icon badge
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: priorityColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(categoryIcon, size: 20, color: priorityColor),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          rec.category,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: priorityColor,
+                          ),
+                        ),
+                      ),
+                      // Priority badge (HIGH / MEDIUM / LOW)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: priorityColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          rec.priority.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    rec.message,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF475569),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

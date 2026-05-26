@@ -7,6 +7,9 @@ import 'package:smartsleep/app/routes.dart';
 import 'package:smartsleep/presentation/widgets/common/primary_button.dart';
 import 'package:smartsleep/data/providers/sleep_data_provider.dart';
 import 'package:smartsleep/data/providers/analysis_provider.dart';
+import 'package:smartsleep/presentation/widgets/sensors/noise_meter_sheet.dart';
+import 'package:smartsleep/presentation/widgets/sensors/light_meter_sheet.dart';
+import 'package:smartsleep/core/network/api_exception.dart';
 
 class PostSleepEntryScreen extends ConsumerStatefulWidget {
   const PostSleepEntryScreen({super.key});
@@ -86,7 +89,7 @@ class _PostSleepEntryScreenState extends ConsumerState<PostSleepEntryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(e is ApiException ? e.message : 'Something went wrong. Please try again.'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -292,35 +295,49 @@ class _PostSleepEntryScreenState extends ConsumerState<PostSleepEntryScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text('Noise level', style: theme.textTheme.labelLarge),
-                  FormBuilderSlider(
+                  _MeasurableField(
+                    formKey: _formKey,
                     name: 'noise_db',
-                    initialValue: 30.0,
-                    min: 30.0,
-                    max: 100.0,
-                    divisions: 70,
+                    label: 'Noise level',
+                    unit: 'dB',
+                    measureIcon: Icons.mic_rounded,
+                    measureColor: theme.colorScheme.primary,
+                    sliderMin: 30.0,
+                    sliderMax: 100.0,
+                    sliderInitial: 30.0,
+                    sliderDivisions: 70,
+                    sliderColor: theme.colorScheme.primary,
                     numberFormat: NumberFormat('###'),
-                    activeColor: theme.colorScheme.primary,
-                    decoration: const InputDecoration(
-                      suffixText: 'dB',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
+                    onMeasure: (ctx) => showModalBottomSheet<double>(
+                      context: ctx,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      builder: (_) => const NoiseMeterSheet(),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text('Light level', style: theme.textTheme.labelLarge),
-                  FormBuilderSlider(
+                  _MeasurableField(
+                    formKey: _formKey,
                     name: 'light_lux',
-                    initialValue: 5.0,
-                    min: 0.0,
-                    max: 300.0,
-                    divisions: 60,
+                    label: 'Light level',
+                    unit: 'lux',
+                    measureIcon: Icons.light_mode_rounded,
+                    measureColor: Colors.amber.shade700,
+                    sliderMin: 0.0,
+                    sliderMax: 300.0,
+                    sliderInitial: 5.0,
+                    sliderDivisions: 60,
+                    sliderColor: Colors.amber,
                     numberFormat: NumberFormat('###'),
-                    activeColor: Colors.amber,
-                    decoration: const InputDecoration(
-                      suffixText: 'lux',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
+                    onMeasure: (ctx) => showModalBottomSheet<double>(
+                      context: ctx,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      builder: (_) => const LightMeterSheet(),
                     ),
                   ),
                 ],
@@ -337,6 +354,130 @@ class _PostSleepEntryScreenState extends ConsumerState<PostSleepEntryScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A form field row that wraps a [FormBuilderSlider] with an optional
+/// "Measure" button that launches a sensor bottom sheet.
+///
+/// When the sensor returns a value it calls [FormBuilderFieldState.didChange]
+/// to update the slider and shows a small "Measured ✓" badge.
+class _MeasurableField extends StatefulWidget {
+  const _MeasurableField({
+    required this.formKey,
+    required this.name,
+    required this.label,
+    required this.unit,
+    required this.measureIcon,
+    required this.measureColor,
+    required this.sliderMin,
+    required this.sliderMax,
+    required this.sliderInitial,
+    required this.sliderDivisions,
+    required this.sliderColor,
+    required this.numberFormat,
+    required this.onMeasure,
+  });
+
+  final GlobalKey<FormBuilderState> formKey;
+  final String name;
+  final String label;
+  final String unit;
+  final IconData measureIcon;
+  final Color measureColor;
+  final double sliderMin;
+  final double sliderMax;
+  final double sliderInitial;
+  final int sliderDivisions;
+  final Color sliderColor;
+  final NumberFormat numberFormat;
+  final Future<double?> Function(BuildContext context) onMeasure;
+
+  @override
+  State<_MeasurableField> createState() => _MeasurableFieldState();
+}
+
+class _MeasurableFieldState extends State<_MeasurableField> {
+  bool _measured = false;
+  bool _isMeasuring = false;
+
+  Future<void> _handleMeasure() async {
+    setState(() => _isMeasuring = true);
+    try {
+      final value = await widget.onMeasure(context);
+      if (value != null && mounted) {
+        widget.formKey.currentState?.fields[widget.name]?.didChange(value);
+        setState(() => _measured = true);
+      }
+    } finally {
+      if (mounted) setState(() => _isMeasuring = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(widget.label, style: theme.textTheme.labelLarge),
+            const Spacer(),
+            if (_measured)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle, size: 13, color: Colors.green.shade600),
+                    const SizedBox(width: 3),
+                    Text(
+                      'Measured',
+                      style: TextStyle(fontSize: 11, color: Colors.green.shade600, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            SizedBox(
+              height: 30,
+              child: _isMeasuring
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: widget.measureColor,
+                        side: BorderSide(color: widget.measureColor.withValues(alpha: 0.5)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        minimumSize: const Size(0, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: Icon(widget.measureIcon, size: 14),
+                      label: const Text('Measure'),
+                      onPressed: _handleMeasure,
+                    ),
+            ),
+          ],
+        ),
+        FormBuilderSlider(
+          name: widget.name,
+          initialValue: widget.sliderInitial,
+          min: widget.sliderMin,
+          max: widget.sliderMax,
+          divisions: widget.sliderDivisions,
+          numberFormat: widget.numberFormat,
+          activeColor: widget.sliderColor,
+          decoration: InputDecoration(
+            suffixText: widget.unit,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      ],
     );
   }
 }

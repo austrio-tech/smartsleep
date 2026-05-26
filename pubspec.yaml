@@ -27,6 +27,9 @@ dependencies:
   share_plus: ^10.0.0
   path_provider: ^2.1.5
   http: ^1.2.0
+  noise_meter: ^5.0.2
+  camera: ^0.10.5+1
+  permission_handler: ^11.3.0
 
 dev_dependencies:
   flutter_test:

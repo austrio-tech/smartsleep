@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../app/routes.dart';
 import '../../../data/providers/sleep_data_provider.dart';
 import '../../../data/models/derived_sleep_data.dart';
+import '../../../core/network/api_exception.dart';
 import 'sleep_detail_screen.dart';
 
 class SleepHistoryScreen extends ConsumerWidget {
@@ -39,7 +40,7 @@ class SleepHistoryScreen extends ConsumerWidget {
           return _buildList(context, scored);
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(e is ApiException ? e.message : 'Failed to load history. Please try again.')),
       ),
     );
   }

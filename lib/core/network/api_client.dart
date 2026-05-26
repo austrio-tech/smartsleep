@@ -12,6 +12,7 @@
 import 'package:dio/dio.dart';
 import '../constants/api_constants.dart';
 import '../storage/secure_storage.dart';
+import 'api_exception.dart';
 
 /// HTTP client wrapper around Dio for making authenticated API requests.
 ///
@@ -47,7 +48,11 @@ class ApiClient {
   ///
   /// [queryParameters] are added to the URL as ?key=value pairs.
   Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) async {
-    return await _dio.get(path, queryParameters: queryParameters);
+    try {
+      return await _dio.get(path, queryParameters: queryParameters);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
   }
 
   /// Performs an HTTP POST request.
@@ -55,17 +60,29 @@ class ApiClient {
   /// [data] is the request body (will be JSON-encoded automatically).
   /// [options] can override headers, content type, etc. for this specific request.
   Future<Response> post(String path, {dynamic data, Options? options}) async {
-    return await _dio.post(path, data: data, options: options);
+    try {
+      return await _dio.post(path, data: data, options: options);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
   }
 
   /// Performs an HTTP PUT request (full or partial resource update).
   Future<Response> put(String path, {dynamic data}) async {
-    return await _dio.put(path, data: data);
+    try {
+      return await _dio.put(path, data: data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
   }
 
   /// Performs an HTTP DELETE request.
   Future<Response> delete(String path, {dynamic data}) async {
-    return await _dio.delete(path, data: data);
+    try {
+      return await _dio.delete(path, data: data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
   }
 }
 

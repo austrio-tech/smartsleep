@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SmartSleep uses the microphone to measure your bedroom noise level for sleep analysis.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>SmartSleep uses the camera to estimate the light level in your bedroom for sleep analysis.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

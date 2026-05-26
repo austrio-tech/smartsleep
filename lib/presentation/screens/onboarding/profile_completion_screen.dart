@@ -5,6 +5,7 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import '../../../app/routes.dart';
 import '../../widgets/common/primary_button.dart';
 import '../../../data/providers/profile_provider.dart';
+import '../../../core/network/api_exception.dart';
 
 class ProfileCompletionScreen extends ConsumerStatefulWidget {
   const ProfileCompletionScreen({super.key});
@@ -39,7 +40,7 @@ class _ProfileCompletionScreenState extends ConsumerState<ProfileCompletionScree
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to update profile: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text(e is ApiException ? e.message : 'Something went wrong. Please try again.'), backgroundColor: Colors.red),
           );
         }
       } finally {

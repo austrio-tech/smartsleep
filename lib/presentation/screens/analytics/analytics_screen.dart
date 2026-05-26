@@ -20,6 +20,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../data/providers/sleep_data_provider.dart';
 import '../../../data/providers/analysis_provider.dart';
 import '../../../data/models/derived_sleep_data.dart';
+import '../../../core/network/api_exception.dart';
 
 /// Which time period the analytics are filtered to.
 enum _Period { week, month, year, custom }
@@ -134,7 +135,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(e is ApiException ? e.message : 'Export failed. Please try again.'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -244,7 +245,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       if (mounted) {
         // Strip the "ApiException: " prefix that our custom exception adds,
         // so the user sees just the human-readable message from the server.
-        final msg = e.toString().replaceFirst('ApiException: ', '');
+        final msg = e is ApiException ? e.message : 'Something went wrong. Please try again.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Email export failed: $msg'),
