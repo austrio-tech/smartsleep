@@ -37,3 +37,13 @@ final recommendationsProvider = FutureProvider<List<Recommendation>>((ref) async
   final repository = ref.watch(analysisRepositoryProvider);
   return await repository.getRecommendations();
 });
+
+/// Fetches recommendations for a specific history record by its [derivedId].
+///
+/// Used by the sleep history detail screen so each entry shows its own
+/// recommendations rather than the latest entry's.
+final recommendationsByIdProvider =
+    FutureProvider.family<List<Recommendation>, String>((ref, derivedId) async {
+  final repository = ref.watch(analysisRepositoryProvider);
+  return await repository.getRecommendations(derivedId: derivedId);
+});

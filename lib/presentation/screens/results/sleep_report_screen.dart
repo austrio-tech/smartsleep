@@ -6,6 +6,7 @@ import '../../../data/providers/analysis_provider.dart';
 import '../../../data/providers/sleep_data_provider.dart';
 import '../../../data/models/derived_sleep_data.dart';
 import '../../../data/models/recommendation.dart';
+import '../../../core/network/api_exception.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -310,6 +311,7 @@ class _ReportBody extends ConsumerWidget {
           ref.invalidate(sleepHistoryProvider);
           ref.invalidate(recommendationsProvider);
           if (context.mounted) {
+            Navigator.pop(context); // close the sheet first
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Feedback submitted. Thank you!'),
@@ -513,7 +515,20 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
   Future<void> _submit() async {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
-    await widget.onSubmitted(_score, _classification);
+    try {
+      await widget.onSubmitted(_score, _classification);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e is ApiException ? e.message : 'Something went wrong. Please try again.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override

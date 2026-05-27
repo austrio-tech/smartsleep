@@ -39,9 +39,11 @@ class SleepDetailScreen extends ConsumerWidget {
     final color = _scoreColor(score);
     final date = DateTime.tryParse(record.date) ?? DateTime.now();
 
-    // Watch the recommendations provider — same data shown on the Sleep Report screen.
-    // Returns AsyncValue<List<Recommendation>> (loading / data / error).
-    final recommendationsAsync = ref.watch(recommendationsProvider);
+    // Fetch recommendations specific to this record so each history entry
+    // shows its own insights rather than the latest entry's.
+    final recommendationsAsync = record.id != null
+        ? ref.watch(recommendationsByIdProvider(record.id!))
+        : ref.watch(recommendationsProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),

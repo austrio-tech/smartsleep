@@ -36,9 +36,14 @@ class AnalysisRepository {
 
   /// Fetches personalised sleep improvement recommendations.
   ///
+  /// Pass [derivedId] to get recommendations for a specific history entry.
+  /// Omit it (or pass null) to get recommendations based on the latest record.
   /// Calls GET /api/v1/insights/recommendations (authenticated).
-  Future<List<Recommendation>> getRecommendations() async {
-    final response = await _apiClient.get(ApiConstants.recommendations);
+  Future<List<Recommendation>> getRecommendations({String? derivedId}) async {
+    final response = await _apiClient.get(
+      ApiConstants.recommendations,
+      queryParameters: derivedId != null ? {'derived_id': derivedId} : null,
+    );
     return (response.data as List).map((e) => Recommendation.fromJson(e)).toList();
   }
 
